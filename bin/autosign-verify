@@ -1,0 +1,64 @@
+#!/bin/bash               
+#
+# Program: Puppet Policy-based autosigning
+# Destination: verify secret
+# Author: scott
+# Github: https://github.com/shazi7804
+
+# Autosign params
+Autosign="/opt/autosign"
+Autosign_pks="$Autosign/pks"
+Autosign_confdir="$Autosign/config"
+Autosign_config="$Autosign_confdir/autosign.conf"
+
+CSR=$(cat)
+
+secret_perse () {
+  echo "$CSR" | openssl req -noout -text | fgrep "$1" | awk -F":" '{ print $2}'
+}
+
+verify_request() {
+  local cert_content
+  cert_content=$(< /dev/stdin)
+  request_secret=$(secret_perse challengePassword)
+
+  if [ -z ${request_secret} ]; then
+    echo "Empty secret in cert '$certname'"
+    exit 1
+  else
+    echo "Policy-based autosigning $certname with secret \"$secret\""
+  fi
+}
+
+verify_match() {
+  if [ -f $Autosign_pks/$certname ]; then
+    nodefile=$Autosign_pks/$certname
+    echo "Verify $certname OK, node is waiting."
+
+    if grep -Fxq $request_secret $nodefile; then
+      echo "Verify secret is match."
+      rm $nodefile
+      exit 0
+    else
+      echo "Verify secret is not match, please check agent \"csr_attributes.yaml\""
+      exit 1
+    fi
+  else
+    echo "Permission denied, not waiting in the allow list."
+    exit 1
+  fi
+}
+
+if [ $# -gt 0 ]; then
+  certname=$1
+  
+  if [[ -f $Autosign_config ]]; then
+    source $Autosign_config
+  fi
+
+  verify_request
+  verify_match
+else
+  echo "It's no parameters, default need certname."
+  exit 1
+fi

@@ -1,0 +1,106 @@
+#!/bin/bash               
+#
+# Program: Puppet Policy-based autosigning
+# Destination: generate secret.
+# Author: scott
+# Github: https://github.com/shazi7804
+
+Welcome () {
+  echo ""
+  echo "Autosign generate infomation:"
+  echo ""
+  echo "  node = $certname"
+  echo "  verify file = $Autosign_pks/$certname"
+  echo ""
+  echo "custom_attributes:"
+  echo ""
+  echo "  challengePassword = $secret"
+  echo ""
+}
+
+helpmsg() {
+  echo ""
+  echo "Usage: $0 [option]"
+  echo ""
+  echo "option:"
+  echo "  -c, --create      create certname allow list.(need certname)"
+  echo "  -p,--password     customize challengePassword params."
+  echo ""
+  echo "example:"
+  echo "  $0 -c example.com"
+  echo ""
+  echo "or customize chanllengePassword example:"
+  echo "  $0 -c example.com -p 1234567890"
+  echo ""
+}
+
+secret_policy() {
+  secret=$(tr -cd 'a-f0-9' < /dev/urandom | head -c 32)
+}
+
+verify_gen() {
+    Welcome
+    owner="sudo -u $Puppet_USER"
+    test -d $Autosign_pks || $owner mkdir -p $Autosign_pks
+
+    $owner touch $Autosign_pks/$certname
+    echo "$secret" > $Autosign_pks/$certname
+
+    if [ $? -eq 0 ]; then
+      echo "Generate secret \"$certname\" finish, ready to wait for validation."
+    fi  
+}
+
+autosign=0
+
+if [ $# -gt 0 ]; then
+  for opt in $@
+  do
+    case $opt in
+      -c|--create)
+        shift
+        if [ -z $1 ]; then
+          echo "\"-c\" option need node name."
+          exit 1
+        else
+          certname=$1
+          shift
+        fi
+        
+        autosign=1
+        ;;
+      -p|--password)
+        shift
+        if [ -z $1 ]; then
+          echo "\"-p\" option need params."
+        else
+          secret=$1
+          shift
+        fi
+        ;;
+      -h|--help)
+        helpmsg
+        ;;
+    esac
+  done
+else
+  helpmsg
+fi
+
+if [ "1" = $autosign ]; then
+  if [ -f ../config/autosign.conf ]; then
+    . ../config/autosign.conf
+  elif [ -f /opt/autosign/config/autosign.conf ]; then
+    . /opt/autosign/config/autosign.conf
+  else
+    echo "Could not find the autosign.conf"
+    exit 1
+  fi
+
+  if [ -z $secret ]; then
+    secret_policy
+  fi
+
+  verify_gen
+fi
+
