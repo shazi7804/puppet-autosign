@@ -1,4 +1,4 @@
-# puppet Policy-based autosigning sample
+# Puppet Policy-based autosigning sample
 Authentication based on challengePassword.
 
 ### Install
